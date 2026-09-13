@@ -1,0 +1,12 @@
+[
+  {
+    "id": "management",
+    "name": "FreshWay Management",
+    "email": "management@freshwayroblox.com",
+    "imapHost": "mail.freshwayroblox.com",
+    "imapPort": 993,
+    "imapSecure": true,
+    "passwordEnv": "MANAGEMENT_PASSWORD",
+    "discordChannelId": "1548373683721212005"
+  }
+]
