@@ -25,6 +25,18 @@ export class DiscordBot {
   public readonly client: Client;
   public readonly commandHandler: CommandHandler;
 
+  private pendingEmailRequests = new Map<
+    string,
+    {
+      userId: string;
+      email: string;
+      reason: string;
+    }
+  >();
+
+  private readonly emailManagerId = "1177912080490319903";
+  private readonly emailLogsChannelId = "1548373683721212005";
+
   constructor() {
     this.client = new Client({
       intents: [GatewayIntentBits.Guilds],
@@ -62,51 +74,227 @@ export class DiscordBot {
 
     this.client.on(Events.InteractionCreate, async (interaction) => {
       if (
-        interaction.isModalSubmit() &&
-        interaction.customId.startsWith("request_email_modal:")
+        !interaction.isModalSubmit() ||
+        !interaction.customId.startsWith("request_email_modal:")
       ) {
-        const userId = interaction.customId.split(":")[1];
-        const email = interaction.fields.getTextInputValue("email");
-        const reason = interaction.fields.getTextInputValue("reason");
+        return;
+      }
 
-        const channel = interaction.guild?.channels.cache.get(
-          "1548373683721212005",
-        );
-        if (!channel || !channel.isSendable()) return;
+      const userId = interaction.customId.split(":")[1];
 
-        const container = new ContainerBuilder();
+      const email = interaction.fields.getTextInputValue("email").trim();
+      const reason = interaction.fields.getTextInputValue("reason").trim();
 
-        const text = new TextDisplayBuilder().setContent(
-          `# New Custom Email Request\nA new custom email request has been made and it's pending review.\n\n**Email Details:**\n> Email Address: ${email}\n\n> **Reason:** ${reason}`,
-        );
+      const channel = interaction.guild?.channels.cache.get(
+        this.emailLogsChannelId,
+      );
 
-        container.addTextDisplayComponents(text);
-
-        const separator = new SeparatorBuilder();
-        container.addSeparatorComponents(separator);
-
-        const text2 = new TextDisplayBuilder().setContent(
-          `-# Request made by <@${userId}>`,
-        );
-
-        container.addTextDisplayComponents(text2);
-
-        channel.send({
-          flags: MessageFlags.IsComponentsV2,
-          components: [container],
+      if (!channel || !channel.isSendable()) {
+        await interaction.reply({
+          content: "The logging channel could not be found.",
+          flags: MessageFlags.Ephemeral,
         });
 
-        interaction.reply({
+        return;
+      }
+
+      // Generate a unique request ID
+      const requestId = `REQ-${Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase()}`;
+
+      // Save request
+      this.pendingEmailRequests.set(requestId, {
+        userId,
+        email,
+        reason,
+      });
+
+      // Send request to logging channel
+      const container = new ContainerBuilder();
+
+      const text = new TextDisplayBuilder().setContent(
+        `# New Custom Email Request
+
+A new custom email request has been made and the Engineering Department has been notified.
+
+**Email Details:**
+> Email Address: ${email}
+
+> **Reason:** ${reason}`,
+      );
+
+      container.addTextDisplayComponents(text);
+
+      const separator = new SeparatorBuilder();
+
+      container.addSeparatorComponents(separator);
+
+      const text2 = new TextDisplayBuilder().setContent(
+        `-# Request ID: \`${requestId}\`\n-# Request made by <@${userId}>`,
+      );
+
+      container.addTextDisplayComponents(text2);
+
+      await channel.send({
+        flags: MessageFlags.IsComponentsV2,
+        components: [container],
+      });
+
+      // DM Engineering user
+      try {
+        const emailManager = await this.client.users.fetch(this.emailManagerId);
+
+        await emailManager.send({
           embeds: [
             new EmbedBuilder()
+              .setTitle("New Custom Email Request")
               .setDescription(
-                "Custom email request has been created successfully!",
+                `You have received a new custom email request.\n\n` +
+                  `**Request ID**\n` +
+                  `\`${requestId}\`\n\n` +
+                  `**Requested By**\n` +
+                  `<@${userId}>\n\n` +
+                  `**Email Address**\n` +
+                  `\`${email}\`\n\n` +
+                  `**Reason**\n` +
+                  `${reason}\n\n` +
+                  `After creating the account, reply to this DM using:\n` +
+                  `\`<Request ID> <Password>\`\n\n` +
+                  `Example:\n` +
+                  `\`${requestId} MyPassword123\``,
               )
-              .setColor("Green"),
+              .setColor("Blue")
+              .setFooter({
+                text: "FreshWay Engineering Department",
+              })
+              .setTimestamp(),
           ],
-          flags: 64,
         });
+      } catch (error) {
+        console.error("Failed to DM Engineering user:", error);
       }
+
+      // Respond to requester
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setDescription(
+              "Custom email request has been created successfully!",
+            )
+            .setColor("Green"),
+        ],
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    this.client.on(Events.MessageCreate, async (message) => {
+      // Ignore bots
+      if (message.author.bot) return;
+
+      // Only process DMs
+      if (message.guild) return;
+
+      // Only the designated Engineering user can submit passwords
+      if (message.author.id !== this.emailManagerId) return;
+
+      const content = message.content.trim();
+
+      if (!content) return;
+
+      // Expected format:
+      // REQ-ABC123 password
+      const firstSpace = content.indexOf(" ");
+
+      if (firstSpace === -1) {
+        await message.reply(
+          "Invalid format.\n\nPlease use:\n`REQUEST_ID PASSWORD`\n\nExample:\n`REQ-ABC123 MyPassword123`",
+        );
+
+        return;
+      }
+
+      const requestId = content.substring(0, firstSpace).trim();
+      const password = content.substring(firstSpace + 1).trim();
+
+      if (!requestId || !password) {
+        await message.reply(
+          "Invalid format.\n\nPlease use:\n`REQUEST_ID PASSWORD`",
+        );
+
+        return;
+      }
+
+      // Find the request
+      const request = this.pendingEmailRequests.get(requestId);
+
+      if (!request) {
+        await message.reply(
+          `No pending email request was found with the ID \`${requestId}\`.`,
+        );
+
+        return;
+      }
+
+      // Delete the pending request immediately
+      this.pendingEmailRequests.delete(requestId);
+
+      // Thank Engineering user
+      await message.reply(
+        `Thank you. The password for request \`${requestId}\` has been received successfully.`,
+      );
+
+      // Get logging channel
+      const channel = await this.client.channels.fetch(this.emailLogsChannelId);
+
+      if (!channel || !channel.isSendable()) {
+        console.error("Email logging channel could not be found.");
+        return;
+      }
+
+      // Log completed request
+      await channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Custom Email Request Completed")
+            .setDescription(
+              "The requested custom email account has been completed.",
+            )
+            .addFields(
+              {
+                name: "Request ID",
+                value: `\`${requestId}\``,
+                inline: true,
+              },
+              {
+                name: "Requested By",
+                value: `<@${request.userId}>`,
+                inline: true,
+              },
+              {
+                name: "Email Address",
+                value: `\`${request.email}\``,
+                inline: false,
+              },
+              {
+                name: "Reason",
+                value: request.reason,
+                inline: false,
+              },
+              {
+                name: "Password",
+                value: `\`${password}\``,
+                inline: false,
+              },
+            )
+            .setColor("Green")
+            .setFooter({
+              text: "FreshWay Engineering Department",
+            })
+            .setTimestamp(),
+        ],
+      });
     });
   }
 
