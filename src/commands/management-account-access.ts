@@ -48,7 +48,6 @@ The following credentials can be used to access the FreshWay Management Email ac
 **Password:** ||lLg3S90UvppvIiBIm8JVxNpRU||
 
 You can access the email account through the FreshWay Mail portal using the link below:
-
 https://mail.freshwayroblox.com/
 
 Please keep the account credentials confidential and do not share them with anyone outside of the authorized Management team. The account should only be used for official FreshWay Management matters and communication.

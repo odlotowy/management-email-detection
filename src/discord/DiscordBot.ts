@@ -197,54 +197,47 @@ A new custom email request has been made and the Engineering Department has been
     });
 
     this.client.on(Events.MessageCreate, async (message) => {
-      // Ignore bots
+      console.log(`[MessageCreate] ${message.author.tag}: ${message.content}`);
+
       if (message.author.bot) return;
 
       // Only process DMs
-      if (message.guild) return;
+      if (message.guild !== null) return;
 
-      // Only the designated Engineering user can submit passwords
-      if (message.author.id !== this.emailManagerId) return;
+      // Only the Engineering user can submit passwords
+      if (message.author.id !== this.emailManagerId) {
+        console.log(`[Email Request] Unauthorized user: ${message.author.id}`);
+        return;
+      }
 
       const content = message.content.trim();
 
       if (!content) return;
 
-      // Expected format:
-      // REQ-ABC123 password
-      const firstSpace = content.indexOf(" ");
+      const parts = content.split(/\s+/);
 
-      if (firstSpace === -1) {
+      if (parts.length < 2) {
         await message.reply(
-          "Invalid format.\n\nPlease use:\n`REQUEST_ID PASSWORD`\n\nExample:\n`REQ-ABC123 MyPassword123`",
+          "Invalid format.\n\nUse:\n`REQUEST_ID PASSWORD`\n\nExample:\n`REQ-A7K2XP MyPassword123`",
         );
 
         return;
       }
 
-      const requestId = content.substring(0, firstSpace).trim();
-      const password = content.substring(firstSpace + 1).trim();
+      const requestId = parts.shift()!;
+      const password = parts.join(" ");
 
-      if (!requestId || !password) {
-        await message.reply(
-          "Invalid format.\n\nPlease use:\n`REQUEST_ID PASSWORD`",
-        );
-
-        return;
-      }
-
-      // Find the request
       const request = this.pendingEmailRequests.get(requestId);
 
       if (!request) {
         await message.reply(
-          `No pending email request was found with the ID \`${requestId}\`.`,
+          `No pending request was found with ID \`${requestId}\`.`,
         );
 
         return;
       }
 
-      // Delete the pending request immediately
+      // Remove the request
       this.pendingEmailRequests.delete(requestId);
 
       // Thank Engineering user
@@ -256,7 +249,7 @@ A new custom email request has been made and the Engineering Department has been
       const channel = await this.client.channels.fetch(this.emailLogsChannelId);
 
       if (!channel || !channel.isSendable()) {
-        console.error("Email logging channel could not be found.");
+        console.error("[Email Request] Logging channel not found.");
         return;
       }
 
@@ -296,12 +289,85 @@ A new custom email request has been made and the Engineering Department has been
               },
             )
             .setColor("Green")
-            .setFooter({
-              text: "FreshWay Engineering Department",
-            })
             .setTimestamp(),
         ],
       });
+
+      // DM the person who created the request
+      try {
+        const requester = await this.client.users.fetch(request.userId);
+
+        const ImageEmbed = new EmbedBuilder()
+          .setImage(
+            "https://cdn.discordapp.com/attachments/1523377560883560640/1525785030608293968/FreshWay_MGMT_Banner.png",
+          )
+          .setColor(0x0a5e0c);
+
+        const embed1 = new EmbedBuilder()
+          .setTitle("Email Account Request")
+          .setDescription(
+            `
+            Your Email Account Request has been accepted.
+
+            
+            > E-Mail: ${request.email}
+            > Reason: ${password}
+            > Status: Accepted
+            `,
+          )
+          .setColor(0x0a5e0c);
+
+        const embed2 = new EmbedBuilder()
+          .setTitle("FreshWay Management Email Account")
+          .setDescription(
+            `
+The following credentials can be used to access the FreshWay Management Email account:
+
+**Email:** ${request.email}
+**Password:** ||${password}||
+
+You can access the email account through the FreshWay Mail portal using the link below:
+https://mail.freshwayroblox.com/
+
+**Custom Email Client Configuration:**
+      `,
+          )
+          .addFields(
+            {
+              name: "IMAP",
+              value: `
+> **Server:** mail.freshwayroblox.com
+> **Security:** SSL/TLS
+> **Port:** 993
+> **Username:** management@freshwayroblox.com
+> **Password:** ||${password}||
+          `,
+              inline: true,
+            },
+            {
+              name: "SMTP",
+              value: `
+> **Server:** mail.freshwayroblox.com
+> **Security:** SSL/TLS
+> **Port:** 465
+> **Username:** management@freshwayroblox.com
+> **Password:** ||${password}||
+          `,
+              inline: true,
+            },
+          );
+
+        await requester.send({ embeds: [ImageEmbed, embed1, embed2] });
+
+        console.log(
+          `[Email Request] Requester ${request.userId} has been notified.`,
+        );
+      } catch (error) {
+        console.error(
+          `[Email Request] Failed to DM requester ${request.userId}:`,
+          error,
+        );
+      }
     });
   }
 
