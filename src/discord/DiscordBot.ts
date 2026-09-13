@@ -8,6 +8,7 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
+  Partials,
   SeparatorBuilder,
   TextDisplayBuilder,
   type ButtonInteraction,
@@ -39,7 +40,13 @@ export class DiscordBot {
 
   constructor() {
     this.client = new Client({
-      intents: [GatewayIntentBits.Guilds],
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+      ],
+      partials: [Partials.Channel],
     });
 
     this.commandHandler = new CommandHandler(this.client);
