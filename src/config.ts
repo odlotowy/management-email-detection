@@ -3,7 +3,7 @@ import "dotenv/config";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { MailboxConfig } from "./types.js";
+import type { MailboxConfig } from "./types";
 
 const mailboxesPath = path.join(process.cwd(), "config", "mailboxes.json");
 
