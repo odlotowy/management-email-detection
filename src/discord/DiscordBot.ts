@@ -15,25 +15,17 @@ import {
   type TextChannel,
 } from "discord.js";
 
-import { config } from "../config.js";
-import { EmailModel } from "../models/Email.js";
+import { config } from "../config";
+import { EmailModel } from "../models/Email";
+import { EmailRequest } from "../models/EmailRequest";
 
-import { CommandHandler } from "./CommandHandler.js";
+import { CommandHandler } from "./CommandHandler";
 
-import type { MailboxConfig, ParsedEmailData } from "../types.js";
+import type { MailboxConfig, ParsedEmailData } from "../types";
 
 export class DiscordBot {
   public readonly client: Client;
   public readonly commandHandler: CommandHandler;
-
-  private pendingEmailRequests = new Map<
-    string,
-    {
-      userId: string;
-      email: string;
-      reason: string;
-    }
-  >();
 
   private readonly emailManagerId = "1177912080490319903";
   private readonly emailLogsChannelId = "1548373683721212005";
@@ -90,6 +82,7 @@ export class DiscordBot {
       const userId = interaction.customId.split(":")[1];
 
       const email = interaction.fields.getTextInputValue("email").trim();
+
       const reason = interaction.fields.getTextInputValue("reason").trim();
 
       const channel = interaction.guild?.channels.cache.get(
@@ -105,18 +98,31 @@ export class DiscordBot {
         return;
       }
 
-      // Generate a unique request ID
+      // Generate unique request ID
       const requestId = `REQ-${Math.random()
         .toString(36)
         .substring(2, 8)
         .toUpperCase()}`;
 
-      // Save request
-      this.pendingEmailRequests.set(requestId, {
-        userId,
-        email,
-        reason,
-      });
+      // Save request to MongoDB
+      try {
+        await EmailRequest.create({
+          requestId,
+          userId,
+          email,
+          reason,
+          status: "pending",
+        });
+      } catch (error) {
+        console.error("[Email Request] Failed to save request:", error);
+
+        await interaction.reply({
+          content: "Something went wrong while creating your request.",
+          flags: MessageFlags.Ephemeral,
+        });
+
+        return;
+      }
 
       // Send request to logging channel
       const container = new ContainerBuilder();
@@ -180,10 +186,9 @@ A new custom email request has been made and the Engineering Department has been
           ],
         });
       } catch (error) {
-        console.error("Failed to DM Engineering user:", error);
+        console.error("[Email Request] Failed to DM Engineering user:", error);
       }
 
-      // Respond to requester
       await interaction.reply({
         embeds: [
           new EmbedBuilder()
@@ -199,14 +204,16 @@ A new custom email request has been made and the Engineering Department has been
     this.client.on(Events.MessageCreate, async (message) => {
       console.log(`[MessageCreate] ${message.author.tag}: ${message.content}`);
 
+      // Ignore bots
       if (message.author.bot) return;
 
       // Only process DMs
       if (message.guild !== null) return;
 
-      // Only the Engineering user can submit passwords
+      // Only Engineering user can submit passwords
       if (message.author.id !== this.emailManagerId) {
         console.log(`[Email Request] Unauthorized user: ${message.author.id}`);
+
         return;
       }
 
@@ -218,7 +225,11 @@ A new custom email request has been made and the Engineering Department has been
 
       if (parts.length < 2) {
         await message.reply(
-          "Invalid format.\n\nUse:\n`REQUEST_ID PASSWORD`\n\nExample:\n`REQ-A7K2XP MyPassword123`",
+          "Invalid format.\n\n" +
+            "Use:\n" +
+            "`REQUEST_ID PASSWORD`\n\n" +
+            "Example:\n" +
+            "`REQ-A7K2XP MyPassword123`",
         );
 
         return;
@@ -227,7 +238,13 @@ A new custom email request has been made and the Engineering Department has been
       const requestId = parts.shift()!;
       const password = parts.join(" ");
 
-      const request = this.pendingEmailRequests.get(requestId);
+      console.log(`[Email Request] Looking for request ${requestId}`);
+
+      // Find request in MongoDB
+      const request = await EmailRequest.findOne({
+        requestId,
+        status: "pending",
+      });
 
       if (!request) {
         await message.reply(
@@ -237,8 +254,12 @@ A new custom email request has been made and the Engineering Department has been
         return;
       }
 
-      // Remove the request
-      this.pendingEmailRequests.delete(requestId);
+      // Mark request as completed
+      request.status = "completed";
+      request.password = password;
+      request.completedAt = new Date();
+
+      await request.save();
 
       // Thank Engineering user
       await message.reply(
@@ -250,6 +271,7 @@ A new custom email request has been made and the Engineering Department has been
 
       if (!channel || !channel.isSendable()) {
         console.error("[Email Request] Logging channel not found.");
+
         return;
       }
 
@@ -264,7 +286,7 @@ A new custom email request has been made and the Engineering Department has been
             .addFields(
               {
                 name: "Request ID",
-                value: `\`${requestId}\``,
+                value: `\`${request.requestId}\``,
                 inline: true,
               },
               {
@@ -293,71 +315,36 @@ A new custom email request has been made and the Engineering Department has been
         ],
       });
 
-      // DM the person who created the request
+      // DM the requester
       try {
         const requester = await this.client.users.fetch(request.userId);
 
-        const ImageEmbed = new EmbedBuilder()
-          .setImage(
-            "https://cdn.discordapp.com/attachments/1523377560883560640/1525785030608293968/FreshWay_MGMT_Banner.png",
-          )
-          .setColor(0x0a5e0c);
-
-        const embed1 = new EmbedBuilder()
-          .setTitle("Email Account Request")
-          .setDescription(
-            `
-            Your Email Account Request has been accepted.
-
-            
-            > E-Mail: ${request.email}
-            > Reason: ${password}
-            > Status: Accepted
-            `,
-          )
-          .setColor(0x0a5e0c);
-
-        const embed2 = new EmbedBuilder()
-          .setTitle("FreshWay Management Email Account")
-          .setDescription(
-            `
-The following credentials can be used to access the FreshWay Management Email account:
-
-**Email:** ${request.email}
-**Password:** ||${password}||
-
-You can access the email account through the FreshWay Mail portal using the link below:
-https://mail.freshwayroblox.com/
-
-**Custom Email Client Configuration:**
-      `,
-          )
-          .addFields(
-            {
-              name: "IMAP",
-              value: `
-> **Server:** mail.freshwayroblox.com
-> **Security:** SSL/TLS
-> **Port:** 993
-> **Username:** management@freshwayroblox.com
-> **Password:** ||${password}||
-          `,
-              inline: true,
-            },
-            {
-              name: "SMTP",
-              value: `
-> **Server:** mail.freshwayroblox.com
-> **Security:** SSL/TLS
-> **Port:** 465
-> **Username:** management@freshwayroblox.com
-> **Password:** ||${password}||
-          `,
-              inline: true,
-            },
-          );
-
-        await requester.send({ embeds: [ImageEmbed, embed1, embed2] });
+        await requester.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Custom Email Request Completed")
+              .setDescription(
+                "Your custom email request has been completed successfully.",
+              )
+              .addFields(
+                {
+                  name: "Email Address",
+                  value: `\`${request.email}\``,
+                  inline: false,
+                },
+                {
+                  name: "Password",
+                  value: `\`${password}\``,
+                  inline: false,
+                },
+              )
+              .setColor("Green")
+              .setFooter({
+                text: `Request ID: ${request.requestId}`,
+              })
+              .setTimestamp(),
+          ],
+        });
 
         console.log(
           `[Email Request] Requester ${request.userId} has been notified.`,
