@@ -5,10 +5,15 @@ export interface IEmailRequest extends Document {
   userId: string;
   email: string;
   reason: string;
-  status: "pending" | "completed";
+
+  status: "pending" | "completed" | "rejected" | "awaiting_rejection_reason";
+
   password?: string;
+  rejectionReason?: string;
+
   createdAt: Date;
   completedAt?: Date;
+  rejectedAt?: Date;
 }
 
 const emailRequestSchema = new Schema<IEmailRequest>({
@@ -35,11 +40,16 @@ const emailRequestSchema = new Schema<IEmailRequest>({
 
   status: {
     type: String,
-    enum: ["pending", "completed"],
+    enum: ["pending", "completed", "rejected", "awaiting_rejection_reason"],
     default: "pending",
   },
 
   password: {
+    type: String,
+    required: false,
+  },
+
+  rejectionReason: {
     type: String,
     required: false,
   },
@@ -50,6 +60,11 @@ const emailRequestSchema = new Schema<IEmailRequest>({
   },
 
   completedAt: {
+    type: Date,
+    required: false,
+  },
+
+  rejectedAt: {
     type: Date,
     required: false,
   },

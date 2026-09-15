@@ -210,12 +210,8 @@ A new custom email request has been made and the Engineering Department has been
       // Only process DMs
       if (message.guild !== null) return;
 
-      // Only Engineering user can submit passwords
-      if (message.author.id !== this.emailManagerId) {
-        console.log(`[Email Request] Unauthorized user: ${message.author.id}`);
-
-        return;
-      }
+      // Only Engineering user can manage requests
+      if (message.author.id !== this.emailManagerId) return;
 
       const content = message.content.trim();
 
@@ -226,8 +222,10 @@ A new custom email request has been made and the Engineering Department has been
       if (parts.length < 2) {
         await message.reply(
           "Invalid format.\n\n" +
-            "Use:\n" +
+            "To complete a request:\n" +
             "`REQUEST_ID PASSWORD`\n\n" +
+            "To reject a request:\n" +
+            "`REQUEST_ID denied`\n\n" +
             "Example:\n" +
             "`REQ-A7K2XP MyPassword123`",
         );
@@ -236,11 +234,9 @@ A new custom email request has been made and the Engineering Department has been
       }
 
       const requestId = parts.shift()!;
-      const password = parts.join(" ");
+      const value = parts.join(" ");
 
-      console.log(`[Email Request] Looking for request ${requestId}`);
-
-      // Find request in MongoDB
+      // Find pending request
       const request = await EmailRequest.findOne({
         requestId,
         status: "pending",
@@ -254,107 +250,276 @@ A new custom email request has been made and the Engineering Department has been
         return;
       }
 
-      // Mark request as completed
+      /*
+       * =========================
+       * REJECT REQUEST
+       * =========================
+       */
+
+      if (value.toLowerCase() === "denied") {
+        // Save that this request is waiting for a rejection reason
+        await EmailRequest.updateOne(
+          {
+            requestId,
+            status: "pending",
+          },
+          {
+            $set: {
+              status: "awaiting_rejection_reason",
+            },
+          },
+        );
+
+        await message.reply(
+          `Request \`${requestId}\` is being rejected.\n\n` +
+            `Please provide the reason for rejecting this request.`,
+        );
+
+        return;
+      }
+
+      /*
+       * =========================
+       * PASSWORD
+       * =========================
+       */
+
+      const password = value;
+
+      // Complete request
       request.status = "completed";
       request.password = password;
       request.completedAt = new Date();
 
       await request.save();
 
-      // Thank Engineering user
+      // Thank Engineering
       await message.reply(
         `Thank you. The password for request \`${requestId}\` has been received successfully.`,
       );
 
-      // Get logging channel
+      // Logging channel
       const channel = await this.client.channels.fetch(this.emailLogsChannelId);
 
-      if (!channel || !channel.isSendable()) {
-        console.error("[Email Request] Logging channel not found.");
-
-        return;
-      }
-
-      // Log completed request
-      await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Custom Email Request Completed")
-            .setDescription(
-              "The requested custom email account has been completed.",
-            )
-            .addFields(
-              {
-                name: "Request ID",
-                value: `\`${request.requestId}\``,
-                inline: true,
-              },
-              {
-                name: "Requested By",
-                value: `<@${request.userId}>`,
-                inline: true,
-              },
-              {
-                name: "Email Address",
-                value: `\`${request.email}\``,
-                inline: false,
-              },
-              {
-                name: "Reason",
-                value: request.reason,
-                inline: false,
-              },
-              {
-                name: "Password",
-                value: `\`${password}\``,
-                inline: false,
-              },
-            )
-            .setColor("Green")
-            .setTimestamp(),
-        ],
-      });
-
-      // DM the requester
-      try {
-        const requester = await this.client.users.fetch(request.userId);
-
-        await requester.send({
+      if (channel && channel.isSendable()) {
+        await channel.send({
           embeds: [
             new EmbedBuilder()
               .setTitle("Custom Email Request Completed")
               .setDescription(
-                "Your custom email request has been completed successfully.",
+                "The requested custom email account has been completed.",
               )
               .addFields(
                 {
+                  name: "Request ID",
+                  value: `\`${request.requestId}\``,
+                  inline: true,
+                },
+                {
+                  name: "Requested By",
+                  value: `<@${request.userId}>`,
+                  inline: true,
+                },
+                {
                   name: "Email Address",
                   value: `\`${request.email}\``,
-                  inline: false,
+                },
+                {
+                  name: "Reason",
+                  value: request.reason,
                 },
                 {
                   name: "Password",
                   value: `\`${password}\``,
-                  inline: false,
                 },
               )
               .setColor("Green")
-              .setFooter({
-                text: `Request ID: ${request.requestId}`,
-              })
               .setTimestamp(),
           ],
         });
+      }
 
-        console.log(
-          `[Email Request] Requester ${request.userId} has been notified.`,
-        );
+      // DM requester
+      try {
+        const requester = await this.client.users.fetch(request.userId);
+
+        const ImageEmbed = new EmbedBuilder()
+          .setImage(
+            "https://cdn.discordapp.com/attachments/1523377560883560640/1525785030608293968/FreshWay_MGMT_Banner.png",
+          )
+          .setColor(0x0a5e0c);
+
+        const embed = new EmbedBuilder()
+          .setTitle("FreshWay Management Email Account")
+          .setColor(0x0a5e0c)
+          .setDescription(
+            `
+The following credentials can be used to access the FreshWay Management Email account:
+
+**Email:** ${request.email}
+**Password:** ||${password}||
+
+You can access the email account through the FreshWay Mail portal using the link below:
+https://mail.freshwayroblox.com/
+
+**Please Note:** All password changes must be logged using \`/password change\` command. Failure to do so may result in a disciplinary actions.
+
+**Custom Email Client Configuration:**
+      `,
+          )
+          .addFields(
+            {
+              name: "IMAP",
+              value: `
+> **Server:** mail.freshwayroblox.com
+> **Security:** SSL/TLS
+> **Port:** 993
+> **Username:** ${request.email}
+> **Password:** ||${password}||
+          `,
+              inline: true,
+            },
+            {
+              name: "SMTP",
+              value: `
+> **Server:** mail.freshwayroblox.com
+> **Security:** SSL/TLS
+> **Port:** 465
+> **Username:** ${request.email}
+> **Password:** ||${password}||
+          `,
+              inline: true,
+            },
+          );
+
+        await requester.send({
+          embeds: [ImageEmbed, embed],
+        });
       } catch (error) {
         console.error(
           `[Email Request] Failed to DM requester ${request.userId}:`,
           error,
         );
       }
+
+      console.log(`[Email Request] Request ${requestId} completed.`);
+    });
+
+    this.client.on(Events.MessageCreate, async (message) => {
+      // Ignore bots
+      if (message.author.bot) return;
+
+      // Only DMs
+      if (message.guild !== null) return;
+
+      // Only Engineering user
+      if (message.author.id !== this.emailManagerId) return;
+
+      const rejectionRequest = await EmailRequest.findOne({
+        status: "awaiting_rejection_reason",
+      }).sort({
+        createdAt: 1,
+      });
+
+      if (!rejectionRequest) return;
+
+      const rejectionReason = message.content.trim();
+
+      if (!rejectionReason) {
+        await message.reply(
+          "Please provide a reason for rejecting the request.",
+        );
+
+        return;
+      }
+
+      // Update MongoDB
+      rejectionRequest.status = "rejected";
+      rejectionRequest.rejectionReason = rejectionReason;
+      rejectionRequest.rejectedAt = new Date();
+
+      await rejectionRequest.save();
+
+      // Confirm to Engineering
+      await message.reply(
+        `Request \`${rejectionRequest.requestId}\` has been rejected successfully.`,
+      );
+
+      // Logging channel
+      const channel = await this.client.channels.fetch(this.emailLogsChannelId);
+
+      if (channel && channel.isSendable()) {
+        await channel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Custom Email Request Rejected")
+              .setDescription("A custom email request has been rejected.")
+              .addFields(
+                {
+                  name: "Request ID",
+                  value: `\`${rejectionRequest.requestId}\``,
+                  inline: true,
+                },
+                {
+                  name: "Requested By",
+                  value: `<@${rejectionRequest.userId}>`,
+                  inline: true,
+                },
+                {
+                  name: "Email Address",
+                  value: `\`${rejectionRequest.email}\``,
+                },
+                {
+                  name: "Original Reason",
+                  value: rejectionRequest.reason,
+                },
+                {
+                  name: "Rejection Reason",
+                  value: rejectionReason,
+                },
+                {
+                  name: "Rejected By",
+                  value: `<@${message.author.id}>`,
+                },
+              )
+              .setColor("Red")
+              .setTimestamp(),
+          ],
+        });
+      }
+
+      // DM requester
+      try {
+        const requester = await this.client.users.fetch(
+          rejectionRequest.userId,
+        );
+
+        await requester.send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("Custom Email Request Rejected")
+              .setDescription("Your custom email request has been rejected.")
+              .addFields({
+                name: "Reason",
+                value: rejectionReason,
+              })
+              .setColor("Red")
+              .setFooter({
+                text: `Request ID: ${rejectionRequest.requestId}`,
+              })
+              .setTimestamp(),
+          ],
+        });
+      } catch (error) {
+        console.error(
+          `[Email Request] Failed to DM requester ${rejectionRequest.userId}:`,
+          error,
+        );
+      }
+
+      console.log(
+        `[Email Request] Request ${rejectionRequest.requestId} rejected.`,
+      );
     });
   }
 
