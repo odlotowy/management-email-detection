@@ -5,7 +5,7 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 
-import { EmailAccount } from "../models/EmailAccount";
+import { EmailAccount } from "../models/EmailAccount.js";
 
 const EMAIL_ROLE_ID = "1523360343227895952";
 

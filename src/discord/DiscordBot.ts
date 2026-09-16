@@ -18,7 +18,7 @@ import {
 import { config } from "../config";
 import { EmailModel } from "../models/Email";
 import { EmailRequest } from "../models/EmailRequest";
-import { EmailAccount } from "../models/EmailAccount";
+import { EmailAccount } from "../models/EmailAccount.js";
 
 import { CommandHandler } from "./CommandHandler";
 
