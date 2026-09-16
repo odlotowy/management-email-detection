@@ -521,6 +521,8 @@ https://mail.freshwayroblox.com/
         `[Email Request] Request ${rejectionRequest.requestId} rejected.`,
       );
     });
+
+    this.client.on(Events.InteractionCreate, async (interaction) => {});
   }
 
   private async handleButton(interaction: ButtonInteraction): Promise<void> {
