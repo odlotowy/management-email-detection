@@ -7,6 +7,9 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 
+console.log("[DEBUG] cwd:", process.cwd());
+console.log("[DEBUG] models:", fs.readdirSync(path.resolve("src/models")));
+
 import { EmailAccount } from "../models/EmailAccount.js";
 
 const EMAIL_ROLE_ID = "1523360343227895952";
@@ -94,9 +97,6 @@ export default {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    console.log("[DEBUG] cwd:", process.cwd());
-    console.log("[DEBUG] models:", fs.readdirSync(path.resolve("src/models")));
-
     /*
      * =========================
      * PERMISSION CHECK
