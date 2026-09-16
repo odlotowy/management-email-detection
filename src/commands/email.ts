@@ -4,6 +4,8 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
+import fs from "node:fs";
+import path from "node:path";
 
 import { EmailAccount } from "../models/EmailAccount.js";
 
@@ -92,6 +94,9 @@ export default {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
+    console.log("[DEBUG] cwd:", process.cwd());
+    console.log("[DEBUG] models:", fs.readdirSync(path.resolve("src/models")));
+
     /*
      * =========================
      * PERMISSION CHECK
