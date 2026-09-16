@@ -18,6 +18,7 @@ import {
 import { config } from "../config";
 import { EmailModel } from "../models/Email";
 import { EmailRequest } from "../models/EmailRequest";
+import { EmailAccount } from "../models/EmailAccount";
 
 import { CommandHandler } from "./CommandHandler";
 
@@ -293,6 +294,13 @@ A new custom email request has been made and the Engineering Department has been
 
       await request.save();
 
+      await EmailAccount.create({
+        email: request.email,
+        password,
+        ownerId: request.userId,
+        createdById: message.author.id,
+      });
+
       // Thank Engineering
       await message.reply(
         `Thank you. The password for request \`${requestId}\` has been received successfully.`,
@@ -521,8 +529,6 @@ https://mail.freshwayroblox.com/
         `[Email Request] Request ${rejectionRequest.requestId} rejected.`,
       );
     });
-
-    this.client.on(Events.InteractionCreate, async (interaction) => {});
   }
 
   private async handleButton(interaction: ButtonInteraction): Promise<void> {
