@@ -18,7 +18,6 @@ import {
 import { config } from "../config";
 import { EmailModel } from "../models/Email";
 import { EmailRequest } from "../models/EmailRequest";
-import { EmailAccount } from "../models/EmailAccount.js";
 
 import { CommandHandler } from "./CommandHandler";
 
@@ -293,13 +292,6 @@ A new custom email request has been made and the Engineering Department has been
       request.completedAt = new Date();
 
       await request.save();
-
-      await EmailAccount.create({
-        email: request.email,
-        password,
-        ownerId: request.userId,
-        createdById: message.author.id,
-      });
 
       // Thank Engineering
       await message.reply(
