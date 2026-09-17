@@ -117,8 +117,14 @@ export class DiscordBot {
         console.error("[Email Request] Failed to save request:", error);
 
         await interaction.reply({
-          content: "Something went wrong while creating your request.",
-          flags: MessageFlags.Ephemeral,
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(
+                "Something went wrong while creating your request. Please try again or contact a administrator.",
+              )
+              .setColor("Red"),
+          ],
+          flags: 64,
         });
 
         return;
@@ -186,7 +192,10 @@ A new custom email request has been made and the Engineering Department has been
           ],
         });
       } catch (error) {
-        console.error("[Email Request] Failed to DM Engineering user:", error);
+        console.error(
+          "[Email Request] Failed to DM Email Manager user:",
+          error,
+        );
       }
 
       await interaction.reply({
@@ -494,22 +503,30 @@ https://mail.freshwayroblox.com/
           rejectionRequest.userId,
         );
 
-        await requester.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("Custom Email Request Rejected")
-              .setDescription("Your custom email request has been rejected.")
-              .addFields({
-                name: "Reason",
-                value: rejectionReason,
-              })
-              .setColor("Red")
-              .setFooter({
-                text: `Request ID: ${rejectionRequest.requestId}`,
-              })
-              .setTimestamp(),
-          ],
-        });
+        const ImageEmbed = new EmbedBuilder()
+          .setImage(
+            "https://cdn.discordapp.com/attachments/1523377560883560640/1525785030608293968/FreshWay_MGMT_Banner.png",
+          )
+          .setColor(0x0a5e0c);
+
+        const embed = new EmbedBuilder()
+          .setColor("Red")
+          .setTitle("Email Account Request Denied")
+          .setDescription(
+            `
+            Your Email account Request has been denied.
+
+            > **Email:** ${rejectionRequest.email}
+            > **Original Reason:** ${rejectionRequest.reason}
+            > **Rejection Reason:** ${rejectionReason}
+
+            If you believe it's a mistake, please contact Management Leadership team or Engineering Department.
+            `,
+          )
+          .setFooter({ text: `Request ID: ${rejectionRequest.requestId}` })
+          .setTimestamp();
+
+        await requester.send({ embeds: [ImageEmbed, embed] });
       } catch (error) {
         console.error(
           `[Email Request] Failed to DM requester ${rejectionRequest.userId}:`,
