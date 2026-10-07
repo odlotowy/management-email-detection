@@ -131,30 +131,44 @@ export class DiscordBot {
       }
 
       // Send request to logging channel
-      const container = new ContainerBuilder();
-
-      const text = new TextDisplayBuilder().setContent(
-        `# New Custom Email Request
-
-A new custom email request has been made and the Engineering Department has been notified.
-
-**Email Details:**
-> Email Address: ${email}
-
-> **Reason:** ${reason}`,
-      );
-
-      container.addTextDisplayComponents(text);
-
-      const separator = new SeparatorBuilder();
-
-      container.addSeparatorComponents(separator);
-
-      const text2 = new TextDisplayBuilder().setContent(
-        `-# Request ID: \`${requestId}\`\n-# Request made by <@${userId}>`,
-      );
-
-      container.addTextDisplayComponents(text2);
+      const container = new ContainerBuilder()
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            [
+              "# New Custom Email Request",
+              "",
+              "A new custom email request has been submitted. The Engineering Department has been notified and will review the request shortly.",
+            ].join("\n"),
+          ),
+        )
+        .addSeparatorComponents(new SeparatorBuilder())
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            [
+              "## Request Details",
+              "",
+              `> **Email Address:** ${email}`,
+              `> **Request Reason:** ${reason}`,
+            ].join("\n"),
+          ),
+        )
+        .addSeparatorComponents(new SeparatorBuilder())
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            [
+              "## Request Information",
+              "",
+              `> **Request ID:** \`${requestId}\``,
+              `> **Submitted By:** <@${userId}>`,
+            ].join("\n"),
+          ),
+        )
+        .addSeparatorComponents(new SeparatorBuilder())
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            "-# Custom email requests are reviewed by the Engineering Department.",
+          ),
+        );
 
       await channel.send({
         flags: MessageFlags.IsComponentsV2,
@@ -166,29 +180,52 @@ A new custom email request has been made and the Engineering Department has been
         const emailManager = await this.client.users.fetch(this.emailManagerId);
 
         await emailManager.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("New Custom Email Request")
-              .setDescription(
-                `You have received a new custom email request.\n\n` +
-                  `**Request ID**\n` +
-                  `\`${requestId}\`\n\n` +
-                  `**Requested By**\n` +
-                  `<@${userId}>\n\n` +
-                  `**Email Address**\n` +
-                  `\`${email}\`\n\n` +
-                  `**Reason**\n` +
-                  `${reason}\n\n` +
-                  `After creating the account, reply to this DM using:\n` +
-                  `\`<Request ID> <Password>\`\n\n` +
-                  `Example:\n` +
-                  `\`${requestId} MyPassword123\``,
+          flags: MessageFlags.IsComponentsV2,
+          components: [
+            new ContainerBuilder()
+              .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                  [
+                    "# New Custom Email Request",
+                    "",
+                    "A new custom email request has been submitted and requires your attention.",
+                  ].join("\n"),
+                ),
               )
-              .setColor("Blue")
-              .setFooter({
-                text: "FreshWay Engineering Department",
-              })
-              .setTimestamp(),
+              .addSeparatorComponents(new SeparatorBuilder())
+              .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                  [
+                    "## Request Details",
+                    "",
+                    `> **Request ID:** \`${requestId}\``,
+                    `> **Requested By:** <@${userId}>`,
+                    `> **Email Address:** \`${email}\``,
+                    `> **Reason:** ${reason}`,
+                  ].join("\n"),
+                ),
+              )
+              .addSeparatorComponents(new SeparatorBuilder())
+              .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                  [
+                    "## Account Setup",
+                    "",
+                    "Once the email account has been created, reply to this DM using the following format:",
+                    "",
+                    `\`<Request ID> <Password>\``,
+                    "",
+                    "**Example:**",
+                    `\`${requestId} MyPassword123\``,
+                  ].join("\n"),
+                ),
+              )
+              .addSeparatorComponents(new SeparatorBuilder())
+              .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(
+                  "-# FreshWay Engineering Department • Custom Email Management",
+                ),
+              ),
           ],
         });
       } catch (error) {
@@ -229,15 +266,51 @@ A new custom email request has been made and the Engineering Department has been
       const parts = content.split(/\s+/);
 
       if (parts.length < 2) {
-        await message.reply(
-          "Invalid format.\n\n" +
-            "To complete a request:\n" +
-            "`REQUEST_ID PASSWORD`\n\n" +
-            "To reject a request:\n" +
-            "`REQUEST_ID denied`\n\n" +
-            "Example:\n" +
-            "`REQ-A7K2XP MyPassword123`",
-        );
+        const container = new ContainerBuilder()
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "# Invalid Response Format",
+                "",
+                "The response could not be processed because the format is invalid.",
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "## Complete a Request",
+                "",
+                "To complete the request, provide the Request ID followed by the account password:",
+                "",
+                "`REQUEST_ID PASSWORD`",
+                "",
+                "**Example:**",
+                "`REQ-A7K2XP MyPassword123`",
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "## Reject a Request",
+                "",
+                "To reject the request, use `denied` instead of the password:",
+                "",
+                "`REQUEST_ID denied`",
+                "",
+                "**Example:**",
+                "`REQ-A7K2XP denied`",
+              ].join("\n"),
+            ),
+          );
+
+        await message.reply({
+          flags: MessageFlags.IsComponentsV2,
+          components: [container],
+        });
 
         return;
       }
@@ -311,40 +384,50 @@ A new custom email request has been made and the Engineering Department has been
       const channel = await this.client.channels.fetch(this.emailLogsChannelId);
 
       if (channel && channel.isSendable()) {
+        const container = new ContainerBuilder()
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "# Custom Email Request Completed",
+                "",
+                "The requested custom email account has been successfully created.",
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "## Request Details",
+                "",
+                `> **Request ID:** \`${request.requestId}\``,
+                `> **Requested By:** <@${request.userId}>`,
+                `> **Email Address:** \`${request.email}\``,
+                `> **Reason:** ${request.reason}`,
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "## Account Credentials",
+                "",
+                `> **Email:** \`${request.email}\``,
+                `> **Password:** \`${password}\``,
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              "-# FreshWay Engineering Department • Custom Email Management",
+            ),
+          );
+
         await channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("Custom Email Request Completed")
-              .setDescription(
-                "The requested custom email account has been completed.",
-              )
-              .addFields(
-                {
-                  name: "Request ID",
-                  value: `\`${request.requestId}\``,
-                  inline: true,
-                },
-                {
-                  name: "Requested By",
-                  value: `<@${request.userId}>`,
-                  inline: true,
-                },
-                {
-                  name: "Email Address",
-                  value: `\`${request.email}\``,
-                },
-                {
-                  name: "Reason",
-                  value: request.reason,
-                },
-                {
-                  name: "Password",
-                  value: `\`${password}\``,
-                },
-              )
-              .setColor("Green")
-              .setTimestamp(),
-          ],
+          flags: MessageFlags.IsComponentsV2,
+          components: [container],
         });
       }
 
@@ -458,42 +541,50 @@ https://mail.freshwayroblox.com/
       const channel = await this.client.channels.fetch(this.emailLogsChannelId);
 
       if (channel && channel.isSendable()) {
+        const container = new ContainerBuilder()
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "# Custom Email Request Rejected",
+                "",
+                "The custom email request has been reviewed and rejected.",
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "## Request Details",
+                "",
+                `> **Request ID:** \`${rejectionRequest.requestId}\``,
+                `> **Requested By:** <@${rejectionRequest.userId}>`,
+                `> **Email Address:** \`${rejectionRequest.email}\``,
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [
+                "## Rejection Details",
+                "",
+                `> **Original Reason:** ${rejectionRequest.reason}`,
+                `> **Rejection Reason:** ${rejectionReason}`,
+                `> **Rejected By:** <@${message.author.id}>`,
+              ].join("\n"),
+            ),
+          )
+          .addSeparatorComponents(new SeparatorBuilder())
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              "-# FreshWay Engineering Department • Custom Email Management",
+            ),
+          );
+
         await channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("Custom Email Request Rejected")
-              .setDescription("A custom email request has been rejected.")
-              .addFields(
-                {
-                  name: "Request ID",
-                  value: `\`${rejectionRequest.requestId}\``,
-                  inline: true,
-                },
-                {
-                  name: "Requested By",
-                  value: `<@${rejectionRequest.userId}>`,
-                  inline: true,
-                },
-                {
-                  name: "Email Address",
-                  value: `\`${rejectionRequest.email}\``,
-                },
-                {
-                  name: "Original Reason",
-                  value: rejectionRequest.reason,
-                },
-                {
-                  name: "Rejection Reason",
-                  value: rejectionReason,
-                },
-                {
-                  name: "Rejected By",
-                  value: `<@${message.author.id}>`,
-                },
-              )
-              .setColor("Red")
-              .setTimestamp(),
-          ],
+          flags: MessageFlags.IsComponentsV2,
+          components: [container],
         });
       }
 
