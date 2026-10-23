@@ -3,6 +3,10 @@ import { simpleParser, type ParsedMail } from "mailparser";
 
 import { EmailModel } from "../models/Email";
 import type { MailboxConfig, ParsedEmailData } from "../types";
+import {
+  registerMailboxStatus,
+  updateMailboxStatus,
+} from "./MailMonitorStatus";
 
 export class MailMonitor {
   private readonly mailbox: MailboxConfig;
@@ -13,6 +17,19 @@ export class MailMonitor {
 
   constructor(mailbox: MailboxConfig) {
     this.mailbox = mailbox;
+
+    registerMailboxStatus({
+      mailboxId: mailbox.id,
+      mailboxName: mailbox.name,
+      email: mailbox.email,
+      running: false,
+      connected: false,
+      startedAt: null,
+      connectedAt: null,
+      lastSyncAt: null,
+      lastError: null,
+      lastErrorAt: null,
+    });
   }
 
   public async start(): Promise<void> {
@@ -22,6 +39,12 @@ export class MailMonitor {
 
     this.running = true;
 
+    updateMailboxStatus(this.mailbox.id, {
+      running: true,
+      startedAt: new Date(),
+      lastError: null,
+    });
+
     console.log(`[Mail:${this.mailbox.id}] Starting monitor...`);
 
     while (this.running) {
@@ -29,6 +52,12 @@ export class MailMonitor {
         await this.runConnection();
       } catch (error) {
         console.error(`[Mail:${this.mailbox.id}] Connection error:`, error);
+
+        updateMailboxStatus(this.mailbox.id, {
+          connected: false,
+          lastError: error instanceof Error ? error.message : String(error),
+          lastErrorAt: new Date(),
+        });
       }
 
       if (this.running) {
@@ -41,6 +70,11 @@ export class MailMonitor {
 
   public async stop(): Promise<void> {
     this.running = false;
+
+    updateMailboxStatus(this.mailbox.id, {
+      running: false,
+      connected: false,
+    });
 
     if (this.client) {
       try {
@@ -88,6 +122,13 @@ export class MailMonitor {
     await this.client.connect();
 
     console.log(`[Mail:${this.mailbox.id}] Connected.`);
+
+    updateMailboxStatus(this.mailbox.id, {
+      connected: true,
+      connectedAt: new Date(),
+      lastError: null,
+      lastErrorAt: null,
+    });
 
     await this.processMailbox();
 
@@ -173,6 +214,10 @@ export class MailMonitor {
       }
     } finally {
       lock.release();
+
+      updateMailboxStatus(this.mailbox.id, {
+        lastSyncAt: new Date(),
+      });
     }
   }
 
