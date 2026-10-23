@@ -10,13 +10,12 @@ import {
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { config } from "../config.js";
 
 export interface Command {
   data: SlashCommandBuilder;
-
   execute(interaction: ChatInputCommandInteraction): Promise<void>;
 }
 
@@ -26,38 +25,36 @@ export class CommandHandler {
   constructor(private readonly client: Client) {}
 
   public async loadCommands(): Promise<void> {
-    const commandsPath = path.join(process.cwd(), "src", "commands");
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const commandsPath = path.resolve(currentDir, "..", "commands");
 
     if (!fs.existsSync(commandsPath)) {
-      fs.mkdirSync(commandsPath, {
-        recursive: true,
-      });
-
-      console.log("[Commands] Created commands directory.");
-
-      return;
+      throw new Error(
+        `[Commands] Commands directory not found: ${commandsPath}`,
+      );
     }
 
     const files = fs
       .readdirSync(commandsPath)
-      .filter((file) => file.endsWith(".ts") || file.endsWith(".js"))
+      .filter((file) => /\.(ts|js)$/.test(file))
       .filter((file) => !file.endsWith(".d.ts"));
+
+    this.commands.clear();
 
     for (const file of files) {
       try {
         const filePath = path.join(commandsPath, file);
-
         const fileUrl = pathToFileURL(filePath).href;
 
         const imported = await import(`${fileUrl}?update=${Date.now()}`);
 
-        const command = imported.default ?? imported.command;
+        const command: Command | undefined =
+          imported.default ?? imported.command;
 
-        if (!command || !command.data || !command.execute) {
+        if (!command?.data || typeof command.execute !== "function") {
           console.warn(
             `[Commands] Skipping ${file}: invalid command structure.`,
           );
-
           continue;
         }
 
@@ -65,12 +62,10 @@ export class CommandHandler {
 
         if (this.commands.has(commandName)) {
           console.warn(`[Commands] Duplicate command: ${commandName}`);
-
           continue;
         }
 
         this.commands.set(commandName, command);
-
         console.log(`[Commands] Loaded /${commandName}`);
       } catch (error) {
         console.error(`[Commands] Failed to load ${file}:`, error);
@@ -81,9 +76,13 @@ export class CommandHandler {
   }
 
   public async registerCommands(): Promise<void> {
-    const rest = new REST({
-      version: "10",
-    }).setToken(config.discordToken);
+    if (!this.client.user) {
+      throw new Error(
+        "[Commands] Cannot register commands before the client is ready.",
+      );
+    }
+
+    const rest = new REST({ version: "10" }).setToken(config.discordToken);
 
     const commandData = Array.from(this.commands.values()).map((command) =>
       command.data.toJSON(),
@@ -93,12 +92,10 @@ export class CommandHandler {
 
     await rest.put(
       Routes.applicationGuildCommands(
-        this.client.user!.id,
+        this.client.user.id,
         config.discordGuildId,
       ),
-      {
-        body: commandData,
-      },
+      { body: commandData },
     );
 
     console.log(
@@ -113,7 +110,6 @@ export class CommandHandler {
 
     if (!command) {
       console.warn(`[Commands] Unknown command: /${interaction.commandName}`);
-
       return;
     }
 
@@ -127,16 +123,24 @@ export class CommandHandler {
 
       const message = "An error occurred while executing this command.";
 
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({
-          embeds: [new EmbedBuilder().setDescription(message).setColor("Red")],
-          flags: 64,
-        });
-      } else {
-        await interaction.reply({
-          embeds: [new EmbedBuilder().setDescription(message).setColor("Red")],
-          flags: 64,
-        });
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({
+            embeds: [
+              new EmbedBuilder().setDescription(message).setColor("Red"),
+            ],
+            ephemeral: true,
+          });
+        } else {
+          await interaction.reply({
+            embeds: [
+              new EmbedBuilder().setDescription(message).setColor("Red"),
+            ],
+            ephemeral: true,
+          });
+        }
+      } catch (replyError) {
+        console.error(`[Commands] Failed to send error response:`, replyError);
       }
     }
   }

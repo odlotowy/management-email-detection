@@ -71,7 +71,7 @@ async function respond(
 ): Promise<void> {
   await interaction.editReply({
     components: [createContainer(title, body)],
-    allowedMentions: { parse: [] },
+    flags: MessageFlags.IsComponentsV2,
   });
 }
 

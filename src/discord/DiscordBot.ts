@@ -739,58 +739,70 @@ https://mail.freshwayroblox.com/
 
     const textChannel = channel as TextChannel;
 
-    const embed = new EmbedBuilder()
-      .setTitle("New Email Received")
-      .setDescription(`A new email has been received in **${mailbox.name}**.`)
-      .setColor(0x2ecc71)
-      .addFields(
-        {
-          name: "From",
-          value: this.truncate(email.from, 1024),
-          inline: false,
-        },
-        {
-          name: "To",
-          value: this.truncate(email.to, 1024),
-          inline: false,
-        },
-        {
-          name: "Subject",
-          value: this.truncate(email.subject, 1024),
-          inline: false,
-        },
-        {
-          name: "Preview",
-          value: this.truncate(email.preview || "No preview available.", 1024),
-          inline: false,
-        },
+    const container = new ContainerBuilder()
+      .setAccentColor(0x2ecc71)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `# <:announcement:1525789206616608839> New Email Received\n` +
+            `A new email has arrived in **${mailbox.name}**.`,
+        ),
       )
-      .setFooter({
-        text: `${mailbox.email} • FreshWay Mail Services`,
-      })
-      .setTimestamp(email.date);
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `### Email Details\n` +
+            `**From**\n${this.truncate(email.from, 500)}\n\n` +
+            `**To**\n${this.truncate(email.to, 500)}\n\n` +
+            `**Subject**\n${this.truncate(email.subject, 500)}`,
+        ),
+      )
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `### Preview\n${this.truncate(
+            email.preview || "No preview available.",
+            1500,
+          )}`,
+        ),
+      );
 
     if (email.attachments.length > 0) {
-      embed.addFields({
-        name: "Attachments",
-        value: this.truncate(
-          email.attachments.map((attachment) => `• ${attachment}`).join("\n"),
-          1024,
-        ),
-        inline: false,
-      });
+      container
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+        .addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(
+            `### Attachments (${email.attachments.length})\n` +
+              email.attachments
+                .map((attachment) => `- ${attachment}`)
+                .join("\n"),
+          ),
+        );
     }
 
-    const button = new ButtonBuilder()
-      .setCustomId(`email:view:${emailId}`)
-      .setLabel("View Email")
-      .setStyle(ButtonStyle.Primary);
+    container
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+      .addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`email:view:${emailId}`)
+            .setLabel("View Email")
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji("📨"),
+        ),
+      );
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+    container
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `-# ${mailbox.email} • FreshWay Mail Services\n` +
+            `-# Received: <t:${Math.floor(email.date.getTime() / 1000)}:F>`,
+        ),
+      );
 
     const message = await textChannel.send({
-      embeds: [embed],
-      components: [row],
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
     });
 
     await EmailModel.findByIdAndUpdate(emailId, {
