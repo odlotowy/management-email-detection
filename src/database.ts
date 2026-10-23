@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-import { config } from "./config";
+import { config } from "./config.js";
 
 export async function connectDatabase(): Promise<void> {
   console.log("[Database] Connecting...");

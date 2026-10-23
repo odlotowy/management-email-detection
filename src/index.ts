@@ -1,10 +1,10 @@
-import { connectDatabase } from "./database";
-import { config } from "./config";
+import { connectDatabase } from "./database.js";
+import { config } from "./config.js";
 import dns from "dns";
-import "./health";
+import "./health.js";
 
-import { DiscordBot } from "./discord/DiscordBot";
-import { MailMonitor } from "./mail/MailMonitor";
+import { DiscordBot } from "./discord/DiscordBot.js";
+import { MailMonitor } from "./mail/MailMonitor.js";
 
 async function main(): Promise<void> {
   console.log("");

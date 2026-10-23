@@ -15,13 +15,13 @@ import {
   type TextChannel,
 } from "discord.js";
 
-import { config } from "../config";
-import { EmailModel } from "../models/Email";
-import { EmailRequest } from "../models/EmailRequest";
+import { config } from "../config.js";
+import { EmailModel } from "../models/Email.js";
+import { EmailRequest } from "../models/EmailRequest.js";
 
-import { CommandHandler } from "./CommandHandler";
+import { CommandHandler } from "./CommandHandler.js";
 
-import type { MailboxConfig, ParsedEmailData } from "../types";
+import type { MailboxConfig, ParsedEmailData } from "../types.js";
 
 export class DiscordBot {
   public readonly client: Client;

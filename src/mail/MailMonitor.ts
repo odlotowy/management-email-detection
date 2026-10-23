@@ -1,12 +1,12 @@
 import { ImapFlow, type FetchMessageObject } from "imapflow";
 import { simpleParser, type ParsedMail } from "mailparser";
 
-import { EmailModel } from "../models/Email";
-import type { MailboxConfig, ParsedEmailData } from "../types";
+import { EmailModel } from "../models/Email.js";
+import type { MailboxConfig, ParsedEmailData } from "../types.js";
 import {
   registerMailboxStatus,
   updateMailboxStatus,
-} from "./MailMonitorStatus";
+} from "./MailMonitorStatus.js";
 
 export class MailMonitor {
   private readonly mailbox: MailboxConfig;

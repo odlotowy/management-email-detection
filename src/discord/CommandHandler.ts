@@ -12,7 +12,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { config } from "../config";
+import { config } from "../config.js";
 
 export interface Command {
   data: SlashCommandBuilder;
