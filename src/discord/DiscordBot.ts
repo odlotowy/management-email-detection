@@ -454,8 +454,6 @@ The following credentials can be used to access the FreshWay Management Email ac
 You can access the email account through the FreshWay Mail portal using the link below:
 https://mail.freshwayroblox.com/
 
-**Please Note:** All password changes must be logged using \`/password change\` command. Failure to do so may result in a disciplinary actions.
-
 **Custom Email Client Configuration:**
       `,
           )
